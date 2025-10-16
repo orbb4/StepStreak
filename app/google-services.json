@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "906827145439",
+    "project_id": "stepstreak-2233",
+    "storage_bucket": "stepstreak-2233.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:906827145439:android:aa7decae182b3de130496a",
+        "android_client_info": {
+          "package_name": "com.example.stepstreak"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDv_kI3HtIOPgDyfVPpdjCE_5rGMZC3-f4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
