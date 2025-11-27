@@ -46,7 +46,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 
@@ -62,22 +64,31 @@ import androidx.compose.ui.res.painterResource
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.stepstreak.data.repository.addFriend
+import com.example.stepstreak.data.repository.addVisitedCell
+import com.example.stepstreak.data.repository.createWalkSession
 import com.example.stepstreak.ui.theme.StepStreakTheme
 import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import com.google.firebase.Firebase
 
+import com.google.firebase.FirebaseApp
 // paquetes propios!
 import com.example.stepstreak.health.HealthRepository
+import com.example.stepstreak.locationscreen.LocationScreen
 import com.example.stepstreak.roadmap.DisplayRoadmap
 import com.example.stepstreak.roadmap.roadmap1
+import com.google.firebase.auth.FirebaseAuth
 
 
 enum class RoadmapScreen(){
     Roadmap,
     YourSteps,
     Shop,
-    Dog
+    Dog,
+    Location
+
 }
 
 
@@ -92,6 +103,7 @@ class MainActivity : ComponentActivity() {
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        FirebaseApp.initializeApp(this)
         val healthConnectClient = HealthConnectClient.getOrCreate(this)
         val healthRepository = HealthRepository(healthConnectClient)
         val status = HealthConnectClient.getSdkStatus(this)
@@ -103,6 +115,8 @@ class MainActivity : ComponentActivity() {
             val navController = rememberNavController()
             var coins by remember { mutableIntStateOf(300) }
             var steps by remember { mutableStateOf<Long?>(null) }
+            //TestScreen()
+
             Scaffold(
 
                 bottomBar = {
@@ -117,7 +131,7 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     Icon(
-                                        Icons.Filled.LocationOn,
+                                        Icons.Filled.Star,
                                         contentDescription = "Roadmap"
                                     )
                                 }
@@ -138,6 +152,15 @@ class MainActivity : ComponentActivity() {
                                     Icon(
                                         Icons.Filled.ShoppingCart,
                                         contentDescription = "Shop"
+                                    )
+                                }
+                                IconButton(
+                                    onClick = { navController.navigate("Location") },
+                                    modifier = Modifier.weight(1f)
+                                ){
+                                    Icon(
+                                        Icons.Filled.LocationOn,
+                                        contentDescription = "Location"
                                     )
                                 }
                                 IconButton(
@@ -218,6 +241,9 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
+                    composable(route=RoadmapScreen.Location.name){
+                        LocationScreen()
+                    }
                     composable(route= RoadmapScreen.Shop.name){
                         Box(
                             contentAlignment = Alignment.Center,
@@ -272,8 +298,10 @@ class MainActivity : ComponentActivity() {
                         }
 
                     }
+
                 }
             }
+
 
 
         }
@@ -333,6 +361,33 @@ fun DogImage(color: Color, alpha: Float, onClick: () -> Unit){
         }
     }
 }
+
+
+@Composable
+fun TestScreen() {
+    val uid = FirebaseAuth.getInstance().currentUser?.uid ?: "testUID"
+
+    Column {
+        Button(onClick = {
+            createWalkSession(uid)
+        }) {
+            Text("Crear sesión de caminata")
+        }
+
+        Button(onClick = {
+            addFriend(uid, "otroUsuarioUID")
+        }) {
+            Text("Enviar solicitud de amistad")
+        }
+
+        Button(onClick = {
+            addVisitedCell("SESSION_ID_AQUI", 12345, 54321)
+        }) {
+            Text("Agregar celda visitada")
+        }
+    }
+}
+
 
 
 // pasos de hoy.

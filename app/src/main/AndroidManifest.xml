@@ -5,6 +5,9 @@
         tools:ignore="HealthConnectPolicy" />
     <uses-permission android:name="android.permission.health.WRITE_STEPS" tools:node="replace"
         tools:ignore="HealthConnectPolicy" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
 

@@ -1,0 +1,4 @@
+toml
+# Incorrect Entries
+firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore", version.ref = "firebaseBom" }google-firebase-database-ktx = { group = "com.google.firebase", name = "firebase-database-ktx", version.ref = "firebaseBom" }
+google-firebase-database = { group = "com.google.firebase", name = "firebase-database", version.ref = "firebaseBom" }

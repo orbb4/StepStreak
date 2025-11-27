@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     //id("com.android.application")
     id("com.google.gms.google-services")
+
 }
 
 android {
@@ -43,6 +44,7 @@ android {
 }
 
 dependencies {
+    implementation(platform(libs.firebase.bom))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -50,10 +52,15 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation("androidx.health.connect:connect-client:1.2.0-alpha01")
     implementation("androidx.compose.ui:ui-text-google-fonts:1.9.0")
-    implementation(platform("com.google.firebase:firebase-bom:34.4.0"))
-    implementation("com.google.firebase:firebase-analytics")
 
-    implementation(libs.firebase.database)
+    implementation("com.google.firebase:firebase-bom:34.4.0")
+    implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-analytics")
+    implementation(platform("com.google.firebase:firebase-bom:34.4.0"))
+    implementation("com.google.firebase:firebase-database")
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-analytics")
+    //implementation(libs.firebase.database)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
@@ -65,6 +72,13 @@ dependencies {
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
     implementation(libs.androidx.appcompat)
+
+    implementation(libs.firebase.firestore)
+    implementation(libs.google.firebase.database)
+    implementation(libs.google.firebase.database)
+    implementation(libs.play.services.location)
+    //implementation(libs.xplatform.com.firebase.bom)
+    //implementation(libs.firebase.database)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
