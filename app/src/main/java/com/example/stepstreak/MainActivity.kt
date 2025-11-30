@@ -61,6 +61,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -80,6 +82,7 @@ import com.example.stepstreak.locationscreen.LocationScreen
 import com.example.stepstreak.roadmap.DisplayRoadmap
 import com.example.stepstreak.roadmap.roadmap1
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.database
 
 
 enum class RoadmapScreen(){
@@ -115,6 +118,20 @@ class MainActivity : ComponentActivity() {
             val navController = rememberNavController()
             var coins by remember { mutableIntStateOf(300) }
             var steps by remember { mutableStateOf<Long?>(null) }
+            var username by remember { mutableStateOf<String?>(null) }
+            LaunchedEffect(Unit) {
+                val user = FirebaseAuth.getInstance().currentUser
+                if (user != null) {
+                    val db = Firebase.database
+                    val usersRef = db.getReference("users").child(user.uid)
+
+                    usersRef.child("username").get()
+                        .addOnSuccessListener { snapshot ->
+                            username = snapshot.getValue(String::class.java)
+                        }
+                }
+            }
+
             //TestScreen()
 
             Scaffold(
@@ -236,9 +253,20 @@ class MainActivity : ComponentActivity() {
                             if (!permissions_granted) {
                                 DisplayText("Pidiendo permisos…")
                             } else {
-                                DisplaySteps(steps)
+                                Column {
+                                    if (username != null) {
+                                        Text(
+                                            text = "¡Hola, $username!",
+                                            fontSize = 24.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(16.dp)
+                                        )
+                                    }
 
+                                    DisplaySteps(steps)
+                                }
                             }
+
                         }
                     }
                     composable(route=RoadmapScreen.Location.name){

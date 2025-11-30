@@ -35,6 +35,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.viewbinding.ViewBinding
+import com.example.stepstreak.MainActivity
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
@@ -46,68 +47,110 @@ import com.google.firebase.database.getValue
 import java.time.format.TextStyle
 
 
-class SignupActivity: ComponentActivity() {
+class SignupActivity : ComponentActivity() {
+
     private lateinit var auth: FirebaseAuth
+    private val database = Firebase.database
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         auth = Firebase.auth
-        val database = Firebase.database
-        val myRef = database.getReference("message")
 
-
-        myRef.addValueEventListener(object : ValueEventListener {
-            override fun onDataChange(dataSnapshot: DataSnapshot) {
-                val value = dataSnapshot.getValue<String>()
-                Log.d("SignupActivity", "Value is: $value")
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                Log.w("SignupActivity", "Failed to read value.", error.toException())
-            }
-        })
         setContent {
-            SignupScreen { email, password, repeatedPassword->
-                if(password==repeatedPassword){
-                    createAccount(email, password)
+            SignupScreen { email, username, password, repeatedPassword ->
+
+                if (password != repeatedPassword) {
+                    Toast.makeText(this, "Las contraseñas no coinciden", Toast.LENGTH_SHORT).show()
+                    return@SignupScreen
                 }
 
+                if (username.isBlank()) {
+                    Toast.makeText(this, "Debes elegir un nombre de usuario", Toast.LENGTH_SHORT).show()
+                    return@SignupScreen
+                }
+
+                createAccount(email, password, username)
             }
+
         }
     }
 
-    private fun createAccount(email: String, password: String) {
-        auth.createUserWithEmailAndPassword(email, password)
-            .addOnCompleteListener(this) { task ->
-                if (task.isSuccessful) {
-                    val user = auth.currentUser
-                    Toast.makeText(
-                        baseContext,
-                        "Account created succesfully!",
-                        Toast.LENGTH_SHORT,
-                    ).show()
-                } else {
-                    Toast.makeText(
-                        baseContext,
-                        "Authentication failed.",
-                        Toast.LENGTH_SHORT,
-                    ).show()
-                }
+    private fun createAccount(email: String, password: String, username: String) {
+
+        // 1) Validar username único
+        val usernamesRef = database.getReference("usernames").child(username)
+
+        usernamesRef.get().addOnSuccessListener { snapshot ->
+
+            if (snapshot.exists()) {
+                Toast.makeText(this, "Ese nombre de usuario ya está tomado", Toast.LENGTH_SHORT).show()
+                return@addOnSuccessListener
             }
+
+            // 2) Crear usuario en Firebase Auth
+            auth.createUserWithEmailAndPassword(email, password)
+                .addOnCompleteListener(this) { task ->
+                    if (!task.isSuccessful) {
+                        Toast.makeText(this, "Error al crear cuenta", Toast.LENGTH_SHORT).show()
+                        return@addOnCompleteListener
+                    }
+
+                    val uid = auth.currentUser!!.uid
+
+                    // 3) Guardar usuario en la base de datos
+                    val userData = mapOf(
+                        "uid" to uid,
+                        "email" to email,
+                        "username" to username
+                    )
+
+                    database.getReference("users").child(uid).setValue(userData)
+                    database.getReference("usernames").child(username).setValue(uid)
+
+                    Toast.makeText(this, "Cuenta creada con éxito", Toast.LENGTH_SHORT).show()
+
+                    startActivity(Intent(this, MainActivity::class.java))
+                    finish()
+                }
+        }
     }
-    public override fun onStart() {
+
+    override fun onStart() {
         super.onStart()
-        // Check if user is signed in (non-null) and update UI accordingly.
         val currentUser = auth.currentUser
+
         if (currentUser != null) {
             currentUser.reload()
+
+            val db = Firebase.database
+            val usersRef = db.getReference("users").child(currentUser.uid)
+
+            usersRef.get().addOnSuccessListener { snapshot ->
+                if (!snapshot.hasChild("username")) {
+                    // Crear username por defecto
+                    val defaultUsername = "user_${currentUser.uid.take(6)}"
+
+                    usersRef.child("username").setValue(defaultUsername)
+                        .addOnSuccessListener {
+                            Log.d("MainActivity", "Se asignó username por defecto: $defaultUsername")
+                        }
+                        .addOnFailureListener {
+                            Log.e("MainActivity", "Error asignando username", it)
+                        }
+                }
+            }
         }
     }
 
 }
 
 @Composable
-fun SignupScreen(onSignup: (String, String, String) -> Unit) {
+fun SignupScreen(
+    onSignup: (email: String, username: String, password: String, repeatedPassword: String) -> Unit
+    ){
+
     var email by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var repeatedPassword by remember { mutableStateOf("") }
 
@@ -116,57 +159,69 @@ fun SignupScreen(onSignup: (String, String, String) -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+
         Text(
             text = "Crea tu cuenta",
             color = MaterialTheme.colorScheme.primary,
             style = MaterialTheme.typography.titleLarge
         )
+
         Spacer(modifier = Modifier.size(10.dp))
+
+        OutlinedTextField(
+            value = username,
+            onValueChange = { username = it },
+            label = { Text("Nombre de usuario") }
+        )
+
+        Spacer(modifier = Modifier.size(10.dp))
+
         OutlinedTextField(
             value = email,
-            onValueChange = {
-                email = it
-            },
+            onValueChange = { email = it },
             label = { Text("Correo electrónico") }
         )
+
         Spacer(modifier = Modifier.size(10.dp))
+
         OutlinedTextField(
             value = password,
-            onValueChange = {
-                password = it
-            },
+            onValueChange = { password = it },
             visualTransformation = PasswordVisualTransformation(),
             label = { Text("Contraseña") }
         )
+
         Spacer(modifier = Modifier.size(10.dp))
+
         OutlinedTextField(
             value = repeatedPassword,
-            onValueChange = {
-                repeatedPassword = it
-            },
+            onValueChange = { repeatedPassword = it },
             visualTransformation = PasswordVisualTransformation(),
             label = { Text("Repetir contraseña") }
         )
+
         Spacer(modifier = Modifier.size(10.dp))
-        Button(onClick = { onSignup(email, password, repeatedPassword) }) {
+
+        Button(onClick = { onSignup(email, username, password, repeatedPassword) }) {
             Text("Registrarse")
         }
-        Spacer(modifier = Modifier.size(20.dp))
-        Text(
-            text = "¿Ya tienes una cuenta?",
-            color = MaterialTheme.colorScheme.primary,
 
-        )
+        Spacer(modifier = Modifier.size(20.dp))
+
         val context = LocalContext.current
+
+        Text(
+            text = "¿Ya tienes cuenta?",
+            color = MaterialTheme.colorScheme.primary
+        )
+
         Text(
             text = "Iniciar sesión",
             color = MaterialTheme.colorScheme.primary,
             textDecoration = TextDecoration.Underline,
-            modifier = Modifier.clickable(onClick = {
+            modifier = Modifier.clickable {
                 context.startActivity(Intent(context, LoginActivity::class.java))
-            })
-
+            }
         )
-
     }
 }

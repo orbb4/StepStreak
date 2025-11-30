@@ -18,8 +18,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import com.example.stepstreak.data.auth
 import com.google.android.gms.location.LocationServices
+import com.google.firebase.database.FirebaseDatabase
 import kotlinx.coroutines.tasks.await
+import org.json.JSONObject
+import java.net.URL
 
 
 @Composable
@@ -31,7 +35,12 @@ fun LocationScreen() {
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            obtenerUbicacion(context) { locationText = it }
+
+            obtenerUbicacion(context) { lat, lon ->
+                obtenerPOI(lat, lon) { poi ->
+                    locationText = "Lat: $lat\nLon: $lon\n\nLugar cercano:\n$poi"
+                }
+            }
         } else {
             locationText = "Permiso rechazado"
         }
@@ -44,10 +53,14 @@ fun LocationScreen() {
         )
 
         if (permission != PackageManager.PERMISSION_GRANTED) {
-            // 👇 ESTO HACE QUE APAREZCA EL POPUP
             permissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
         } else {
-            obtenerUbicacion(context) { locationText = it }
+            obtenerUbicacion(context) { lat, lon ->
+                obtenerPOI(lat, lon) { poi ->
+                    guardarLugarEnFirebase(auth.currentUser!!.uid, poi, lat, lon)
+                    locationText = "Lugar visitado guardado:\n$poi"
+                }
+            }
         }
     }
 
@@ -60,14 +73,58 @@ fun LocationScreen() {
 }
 
 @SuppressLint("MissingPermission")
-fun obtenerUbicacion(context: Context, onResult: (String) -> Unit) {
+fun obtenerUbicacion(context: Context, onResult: (Double, Double) -> Unit) {
     val fused = LocationServices.getFusedLocationProviderClient(context)
 
     fused.lastLocation.addOnSuccessListener { location ->
         if (location != null) {
-            onResult("Lat: ${location.latitude}\nLon: ${location.longitude}")
-        } else {
-            onResult("No se pudo obtener ubicación")
+            onResult(location.latitude, location.longitude)
         }
     }
+}
+
+
+fun obtenerPOI(lat: Double, lon: Double, onResult: (String) -> Unit) {
+    val url =
+        "https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lon&zoom=18&addressdetails=1"
+
+    Thread {
+        try {
+            val connection = URL(url).openConnection()
+            connection.setRequestProperty("User-Agent", "StepStreakApp/1.0")
+
+            val data = connection.getInputStream().bufferedReader().use { it.readText() }
+            val json = JSONObject(data)
+
+            val displayName = json.optString("display_name", "Sin información")
+
+            onResult(displayName)
+        } catch (e: Exception) {
+            onResult("No se pudo obtener punto de interés")
+        }
+    }.start()
+}
+
+
+fun generarPlaceId(nombre: String): String {
+    return nombre.lowercase()
+        .replace("[^a-z0-9]".toRegex(), "_")
+        .replace("_+".toRegex(), "_")
+        .trim('_')
+}
+
+fun guardarLugarEnFirebase(uid: String, nombreLugar: String, lat: Double, lon: Double) {
+    val db = FirebaseDatabase.getInstance().reference
+    val placeId = generarPlaceId(nombreLugar)
+
+    val ref = db.child("users").child(uid).child("places").child(placeId)
+
+    val data = mapOf(
+        "name" to nombreLugar,
+        "lat" to lat,
+        "lon" to lon,
+        "last_visit" to System.currentTimeMillis(),
+    )
+
+    ref.updateChildren(data)
 }
