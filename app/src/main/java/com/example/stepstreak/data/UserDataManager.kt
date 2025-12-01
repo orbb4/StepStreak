@@ -8,3 +8,4 @@ import com.google.firebase.firestore.firestore
 
 val auth = FirebaseAuth.getInstance()
 val db = Firebase.firestore
+

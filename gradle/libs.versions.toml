@@ -18,6 +18,8 @@ credentialsPlayServicesAuth = "1.5.0"
 googleid = "1.1.1"
 appcompat = "1.7.1"
 playServicesLocation = "21.3.0"
+material3 = "1.4.0"
+ui = "1.9.5"
 #firebaseDatabaseKtx = "22.0.1"
 #firebaseFirestoreKtx = "26.0.2"
 #firebaseFirestore = "26.0.2"
@@ -29,6 +31,8 @@ playServicesLocation = "21.3.0"
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 androidx-connect-client = { module = "androidx.health.connect:connect-client", version.ref = "connectClient" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+
+compose-material-icons = { group = "androidx.compose.material", name = "material-icons-core" }
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
@@ -62,6 +66,8 @@ firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore
 
 firebase-database = { group = "com.google.firebase", name = "firebase-database" }
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
+androidx-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
+androidx-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "ui" }
 
 
 

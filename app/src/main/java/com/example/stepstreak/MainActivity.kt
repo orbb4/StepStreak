@@ -1,6 +1,7 @@
 package com.example.stepstreak
 import android.R.attr.onClick
 import android.app.Activity
+import android.content.Intent
 import android.widget.TextView
 import androidx.core.view.setPadding
 import android.os.Bundle
@@ -42,18 +43,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material.icons.filled.Star
+
+import androidx.compose.material.icons.Icons.
+
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -63,12 +66,14 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.stepstreak.data.repository.addFriend
 import com.example.stepstreak.data.repository.addVisitedCell
 import com.example.stepstreak.data.repository.createWalkSession
+import com.example.stepstreak.data.repository.sendFriendRequest
 import com.example.stepstreak.ui.theme.StepStreakTheme
 import kotlinx.coroutines.delay
 import java.time.Instant
@@ -119,16 +124,35 @@ class MainActivity : ComponentActivity() {
             var coins by remember { mutableIntStateOf(300) }
             var steps by remember { mutableStateOf<Long?>(null) }
             var username by remember { mutableStateOf<String?>(null) }
+            var friends by remember { mutableStateOf<List<Pair<String, Long>>>(emptyList()) }
+
+
             LaunchedEffect(Unit) {
                 val user = FirebaseAuth.getInstance().currentUser
                 if (user != null) {
                     val db = Firebase.database
                     val usersRef = db.getReference("users").child(user.uid)
-
+                    val friendsRef = db.getReference("friends").child(user.uid)
                     usersRef.child("username").get()
                         .addOnSuccessListener { snapshot ->
                             username = snapshot.getValue(String::class.java)
                         }
+                    friendsRef.get().addOnSuccessListener { snapshot ->
+                        val friendIds = snapshot.children.map { it.key!! }
+
+                        val tmpList = mutableListOf<Pair<String, Long>>()
+
+                        friendIds.forEach { friendUid ->
+                            db.getReference("users").child(friendUid).get()
+                                .addOnSuccessListener { friendSnap ->
+                                    val friendName = friendSnap.child("username").getValue(String::class.java) ?: "?"
+                                    val friendSteps = friendSnap.child("stepsToday").getValue(Long::class.java) ?: 0L
+
+                                    tmpList.add(friendName to friendSteps)
+                                    friends = tmpList.toList()
+                                }
+                        }
+                    }
                 }
             }
 
@@ -236,6 +260,8 @@ class MainActivity : ComponentActivity() {
                     }
                     // pantalla pasos
                     composable(route= RoadmapScreen.YourSteps.name){
+                        var showAddFriendDialog by remember { mutableStateOf(false) }
+                        var friendUsernameInput by remember { mutableStateOf("") }
                         StepStreakTheme {
 
                             LaunchedEffect(Unit) {
@@ -253,7 +279,12 @@ class MainActivity : ComponentActivity() {
                             if (!permissions_granted) {
                                 DisplayText("Pidiendo permisos…")
                             } else {
-                                Column {
+                                var showAddFriendDialog by remember { mutableStateOf(false) }
+                                var friendUsernameInput by remember { mutableStateOf("") }
+
+                                Column(modifier = Modifier.fillMaxWidth()) {
+
+                                    // "hola, usuario" texto
                                     if (username != null) {
                                         Text(
                                             text = "¡Hola, $username!",
@@ -263,10 +294,84 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
 
+                                    // display de pasos
                                     DisplaySteps(steps)
-                                }
-                            }
 
+                                    Spacer(modifier = Modifier.height(20.dp))
+                                    // "tus amigos" texto
+                                    Text(
+                                        "Tus amigos",
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(start = 16.dp)
+                                    )
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    // lista de amigos
+                                    FriendsList(friends)
+
+                                    Spacer(modifier = Modifier.height(20.dp))
+
+                                    // boton agregar amigo
+                                    Button(
+                                        onClick = { showAddFriendDialog = true },
+                                        modifier = Modifier
+                                            .padding(16.dp)
+                                            .fillMaxWidth()
+                                    ) {
+                                        Text("Agregar amigo")
+                                    }
+                                    if (showAddFriendDialog) {
+                                        Dialog(onDismissRequest = { showAddFriendDialog = false }) {
+                                            Surface(
+                                                shape = RoundedCornerShape(16.dp),
+                                                tonalElevation = 4.dp
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier.padding(20.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                                ) {
+
+                                                    Text(
+                                                        "Agregar amigo",
+                                                        fontSize = 20.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+
+                                                    TextField(
+                                                        value = friendUsernameInput,
+                                                        onValueChange = { friendUsernameInput = it },
+                                                        placeholder = { Text("Nombre de usuario…") },
+                                                        singleLine = true
+                                                    )
+
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.End
+                                                    ) {
+                                                        TextButton(onClick = { showAddFriendDialog = false }) {
+                                                            Text("Cancelar")
+                                                        }
+                                                        Button(
+                                                            onClick = {
+                                                                showAddFriendDialog = false
+                                                                sendFriendRequest(friendUsernameInput)
+                                                                friendUsernameInput = ""
+                                                            }
+                                                        ) {
+                                                            Text("Enviar")
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                }
+
+
+                            }
                         }
                     }
                     composable(route=RoadmapScreen.Location.name){
@@ -448,6 +553,77 @@ fun DisplayTotalSteps(steps: Long?){
 fun DisplayText(text: String){
     Text(text = text, Modifier.padding(5.dp).statusBarsPadding())
 }
+
+
+@Composable
+fun FriendsList(friends: List<Pair<String, Long>>) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+
+        if (friends.isEmpty()) {
+            Text(
+                text = "Todavía no tienes amigos...",
+                modifier = Modifier.padding(16.dp),
+                color = Color.Gray
+            )
+            return
+        }
+
+        friends.forEach { (name, steps) ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = name, fontSize = 18.sp)
+                Text(text = "$steps pasos", fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+
+@Composable
+fun AddFriendDialog(
+    onDismiss: () -> Unit,
+    onSend: (String) -> Unit
+) {
+    var username by remember { mutableStateOf("") }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            tonalElevation = 4.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("Agregar amigo", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+
+                TextField(
+                    value = username,
+                    onValueChange = { username = it },
+                    placeholder = { Text("Nombre de usuario…") },
+                    singleLine = true
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.End,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancelar")
+                    }
+                    Button(onClick = { onSend(username) }) {
+                        Text("Enviar")
+                    }
+                }
+            }
+        }
+    }
+}
+
 
 
 
