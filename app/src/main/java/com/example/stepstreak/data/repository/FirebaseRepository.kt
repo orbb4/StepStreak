@@ -60,6 +60,74 @@ fun sendFriendRequest(
     }
 }
 
+fun getUsername(uid: String, onResult: (String) -> Unit) {
+    val db = Firebase.database
+    db.getReference("users").child(uid).child("username")
+        .get()
+        .addOnSuccessListener { onResult(it.value?.toString() ?: "Desconocido") }
+}
+
+
+fun loadPendingRequests(onResult: (List<FriendshipDisplay>) -> Unit) {
+    val currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+    val db = Firebase.database
+
+    db.getReference("friendships").get().addOnSuccessListener { snapshot ->
+
+        val pending = snapshot.children.mapNotNull { snap ->
+            val friendship = snap.getValue(Friendship::class.java)
+
+            if (friendship != null &&
+                friendship.receiver == currentUid &&
+                friendship.status == "pending"
+            ) {
+
+                FriendshipDisplay(
+                    id = snap.key ?: "",
+                    senderUid = friendship.sender
+                )
+            } else null
+        }
+
+        onResult(pending)
+    }
+}
+
+fun loadFriends(onResult: (List<Pair<String, Long>>) -> Unit) {
+    val currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+    val db = Firebase.database
+
+    db.getReference("userFriends").child(currentUid).get()
+        .addOnSuccessListener { snapshot ->
+
+            val friendIds = snapshot.children.map { it.key!! }
+
+            if (friendIds.isEmpty()) {
+                onResult(emptyList())
+                return@addOnSuccessListener
+            }
+
+            val tmpList = mutableListOf<Pair<String, Long>>()
+            var loadedCount = 0
+
+            friendIds.forEach { friendUid ->
+                db.getReference("users").child(friendUid).get()
+                    .addOnSuccessListener { friendSnap ->
+                        val friendName = friendSnap.child("username").getValue(String::class.java) ?: "?"
+                        val friendSteps =
+                            friendSnap.child("stepsToday").getValue(Long::class.java) ?: 0L
+
+                        tmpList.add(friendName to friendSteps)
+                        loadedCount++
+
+                        // Cuando ya cargamos todos, devolvemos la lista
+                        if (loadedCount == friendIds.size) {
+                            onResult(tmpList)
+                        }
+                    }
+            }
+        }
+}
 
 
 fun rejectFriendRequest(friendUid: String) {
@@ -93,21 +161,48 @@ fun rejectFriendRequest(friendUid: String) {
     }
 }
 
+fun acceptRequest(friendshipId: String) {
+    val db = Firebase.database
+    db.getReference("friendships").child(friendshipId)
+        .child("status").setValue("accepted")
+}
 
-fun acceptFriendRequest(friendUid: String) {
-    val currentUser = FirebaseAuth.getInstance().currentUser ?: return
+
+fun denyRequest(friendshipId: String) {
+    val db = Firebase.database
+    db.getReference("friendships").child(friendshipId).removeValue()
+}
+
+
+
+fun acceptFriendRequest(friendshipId: String) {
+    val currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: return
     val db = Firebase.database
 
-    val friendshipId = listOf(currentUser.uid, friendUid).sorted().joinToString("_")
-    val friendshipRef = db.getReference("friendships").child(friendshipId)
+    val ref = db.getReference("friendships").child(friendshipId)
 
-    friendshipRef.child("status").setValue("accepted")
-        .addOnSuccessListener {
-            Log.d("Friends", "Solicitud aceptada")
-        }
-        .addOnFailureListener {
-            Log.d("Friends", "Error al aceptar la solicitud")
-        }
+    ref.get().addOnSuccessListener { snap ->
+        val friendship = snap.getValue(Friendship::class.java) ?: return@addOnSuccessListener
+
+        val sender = friendship.sender
+        val receiver = friendship.receiver
+
+        // 1. Cambiar el estado a "accepted"
+        ref.child("status").setValue("accepted")
+
+        // 2. Agregar la amistad a userFriends
+        db.getReference("userFriends")
+            .child(sender)
+            .child(receiver)
+            .setValue(true)
+
+        db.getReference("userFriends")
+            .child(receiver)
+            .child(sender)
+            .setValue(true)
+
+        Log.d("Friends", "Amistad aceptada correctamente")
+    }
 }
 
 
@@ -156,13 +251,13 @@ fun getFriends(uid: String, onResult: (List<String>) -> Unit) {
         onResult(lista)
     }
 }
-
+/*
 fun getUsername(uid: String, onResult: (String?) -> Unit) {
     val usersRef = Firebase.database.getReference("users").child(uid).child("username")
     usersRef.get().addOnSuccessListener { snapshot ->
         onResult(snapshot.getValue(String::class.java))
     }
-}
+}*/
 
 
 

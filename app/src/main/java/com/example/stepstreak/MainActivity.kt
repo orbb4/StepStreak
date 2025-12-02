@@ -52,6 +52,8 @@ import androidx.compose.material.icons.filled.Star
 
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 
@@ -61,28 +63,40 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.stepstreak.authentication.LoginActivity
+import com.example.stepstreak.data.repository.FriendshipDisplay
+import com.example.stepstreak.data.repository.acceptFriendRequest
+import com.example.stepstreak.data.repository.acceptRequest
 import com.example.stepstreak.data.repository.addFriend
 import com.example.stepstreak.data.repository.addVisitedCell
 import com.example.stepstreak.data.repository.createWalkSession
+import com.example.stepstreak.data.repository.denyRequest
+import com.example.stepstreak.data.repository.getUsername
+import com.example.stepstreak.data.repository.loadPendingRequests
 import com.example.stepstreak.data.repository.sendFriendRequest
 import com.example.stepstreak.ui.theme.StepStreakTheme
 import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import com.google.firebase.Firebase
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.database
 
 import com.google.firebase.FirebaseApp
 // paquetes propios!
@@ -90,9 +104,7 @@ import com.example.stepstreak.health.HealthRepository
 import com.example.stepstreak.locationscreen.LocationScreen
 import com.example.stepstreak.roadmap.DisplayRoadmap
 import com.example.stepstreak.roadmap.roadmap1
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.database
-
+import com.example.stepstreak.data.repository.loadFriends
 
 enum class RoadmapScreen(){
     Roadmap,
@@ -114,6 +126,7 @@ class MainActivity : ComponentActivity() {
             permissions_granted = granted.containsAll((PERMISSIONS))
         }
 
+    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         FirebaseApp.initializeApp(this)
         val healthConnectClient = HealthConnectClient.getOrCreate(this)
@@ -128,7 +141,14 @@ class MainActivity : ComponentActivity() {
             var coins by remember { mutableIntStateOf(300) }
             var steps by remember { mutableStateOf<Long?>(null) }
             var username by remember { mutableStateOf<String?>(null) }
-            var friends by remember { mutableStateOf<List<Pair<String, Long>>>(emptyList()) }
+            var friends by remember { mutableStateOf(listOf<Pair<String, Long>>()) }
+
+            LaunchedEffect(Unit) {
+                loadFriends { list ->
+                    friends = list
+                }
+            }
+
 
 
             LaunchedEffect(Unit) {
@@ -136,7 +156,7 @@ class MainActivity : ComponentActivity() {
                 if (user != null) {
                     val db = Firebase.database
                     val usersRef = db.getReference("users").child(user.uid)
-                    val friendsRef = db.getReference("friends").child(user.uid)
+                    val friendsRef = db.getReference("friendships").child(user.uid)
                     usersRef.child("username").get()
                         .addOnSuccessListener { snapshot ->
                             username = snapshot.getValue(String::class.java)
@@ -163,7 +183,30 @@ class MainActivity : ComponentActivity() {
             //TestScreen()
 
             Scaffold(
+                topBar = {
+                    val context = LocalContext.current
+                    TopAppBar(
 
+                        title = { Text("StepStreak") },
+                        actions = {
+                            Text(
+                                "Cerrar sesión",
+                                modifier = Modifier
+                                    .padding(end = 16.dp)
+                                    .clickable {
+                                        FirebaseAuth.getInstance().signOut()
+                                        // abrir LoginActivity
+
+                                        val intent = Intent(context, LoginActivity::class.java)
+                                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                        context.startActivity(intent)
+                                    },
+                                color = MaterialTheme.colorScheme.primary,
+                                textDecoration = TextDecoration.Underline
+                            )
+                        }
+                    )
+                },
                 bottomBar = {
                     BottomAppBar(
                         {
@@ -326,8 +369,8 @@ class MainActivity : ComponentActivity() {
                                     ) {
                                         Text("Agregar amigo")
                                     }
+                                    FriendRequestsScreen()
                                     var resultMessage by remember { mutableStateOf<String?>(null) }
-
                                     if (showAddFriendDialog) {
                                         Dialog(onDismissRequest = { showAddFriendDialog = false }) {
                                             Surface(shape = RoundedCornerShape(16.dp), tonalElevation = 4.dp) {
@@ -645,6 +688,82 @@ fun AddFriendDialog(
     }
 }
 
+@Composable
+fun FriendRequestsScreen() {
+    var pendingRequests by remember { mutableStateOf<List<FriendshipDisplay>>(emptyList()) }
+
+    LaunchedEffect(Unit) {
+        loadPendingRequests { list ->
+            pendingRequests = list
+        }
+    }
+
+    PendingRequestsSection(pendingRequests)
+}
+
+
+
+@Composable
+fun PendingRequestsSection(pendingRequests: List<FriendshipDisplay>) {
+    Column(modifier = Modifier.padding(16.dp)) {
+
+        if (pendingRequests.isNotEmpty()) {
+            Text(
+                "Solicitudes pendientes",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            pendingRequests.forEach { request ->
+                PendingRequestItem(request)
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+    }
+}
+
+
+@Composable
+fun PendingRequestItem(request: FriendshipDisplay) {
+
+    var username: String? by remember { mutableStateOf("...") }
+
+    // Obtener username del remitente
+    LaunchedEffect(request.senderUid) {
+        getUsername(request.senderUid) {
+            username = it
+        }
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        username?.let { Text(it, fontSize = 18.sp) }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+
+            Button(
+                onClick = { acceptFriendRequest(request.id) },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+            ) {
+                Text("Aceptar")
+            }
+
+            Button(
+                onClick = { denyRequest(request.id) },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
+            ) {
+                Text("Denegar")
+            }
+        }
+    }
+}
 
 
 val PERMISSIONS =

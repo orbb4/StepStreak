@@ -49,12 +49,6 @@ class LoginActivity: ComponentActivity() {
         super.onCreate(savedInstanceState)
         auth = Firebase.auth
 
-        // SI YA ESTÁ LOGEADO, SALTAR LOGIN
-        if (auth.currentUser != null) {
-            startActivity(Intent(this, MainActivity::class.java))
-            finish()
-            return
-        }
 
         setContent {
             LoginScreen { email, password ->
