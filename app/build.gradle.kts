@@ -55,7 +55,7 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation("androidx.health.connect:connect-client:1.2.0-alpha01")
     implementation("androidx.compose.ui:ui-text-google-fonts:1.9.0")
-    implementation("androidx.compose.material3:material3-icons-extended:1.3.1")
+
     implementation("androidx.compose.material3:material3:1.3.1")
     implementation("androidx.compose.material:material-icons-extended:1.7.5")
 
@@ -78,7 +78,7 @@ dependencies {
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
     implementation(libs.androidx.appcompat)
-    implementation("androidx.compose.material3:material3-icons-extended:1.2.1")
+
     implementation(libs.firebase.firestore)
     implementation(libs.google.firebase.database)
     implementation(libs.google.firebase.database)

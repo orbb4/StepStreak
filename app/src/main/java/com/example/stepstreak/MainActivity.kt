@@ -44,7 +44,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 
-import androidx.compose.material.icons.Icons.
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Star
 
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
@@ -322,29 +326,32 @@ class MainActivity : ComponentActivity() {
                                     ) {
                                         Text("Agregar amigo")
                                     }
+                                    var resultMessage by remember { mutableStateOf<String?>(null) }
+
                                     if (showAddFriendDialog) {
                                         Dialog(onDismissRequest = { showAddFriendDialog = false }) {
-                                            Surface(
-                                                shape = RoundedCornerShape(16.dp),
-                                                tonalElevation = 4.dp
-                                            ) {
+                                            Surface(shape = RoundedCornerShape(16.dp), tonalElevation = 4.dp) {
                                                 Column(
                                                     modifier = Modifier.padding(20.dp),
                                                     verticalArrangement = Arrangement.spacedBy(12.dp)
                                                 ) {
 
-                                                    Text(
-                                                        "Agregar amigo",
-                                                        fontSize = 20.sp,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
+                                                    Text("Agregar amigo", fontSize = 20.sp, fontWeight = FontWeight.Bold)
 
                                                     TextField(
                                                         value = friendUsernameInput,
-                                                        onValueChange = { friendUsernameInput = it },
+                                                        onValueChange = {
+                                                            friendUsernameInput = it
+                                                            resultMessage = null   // limpiar mensajes al escribir
+                                                        },
                                                         placeholder = { Text("Nombre de usuario…") },
                                                         singleLine = true
                                                     )
+
+                                                    // Mensaje de error o éxito
+                                                    resultMessage?.let { msg ->
+                                                        Text(msg, color = Color.Red)
+                                                    }
 
                                                     Row(
                                                         modifier = Modifier.fillMaxWidth(),
@@ -355,9 +362,14 @@ class MainActivity : ComponentActivity() {
                                                         }
                                                         Button(
                                                             onClick = {
-                                                                showAddFriendDialog = false
-                                                                sendFriendRequest(friendUsernameInput)
-                                                                friendUsernameInput = ""
+                                                                sendFriendRequest(friendUsernameInput) { success, message ->
+                                                                    resultMessage = message
+                                                                    if (success) {
+                                                                        // cerrar solo si realmente se envió
+                                                                        showAddFriendDialog = false
+                                                                        friendUsernameInput = ""
+                                                                    }
+                                                                }
                                                             }
                                                         ) {
                                                             Text("Enviar")
@@ -366,7 +378,9 @@ class MainActivity : ComponentActivity() {
                                                 }
                                             }
                                         }
+
                                     }
+
 
                                 }
 
@@ -525,17 +539,24 @@ fun TestScreen() {
 
 // pasos de hoy.
 @Composable
-fun DisplaySteps(steps: Long?){
+fun DisplaySteps(steps: Long?) {
     Box(
-        modifier = Modifier.fillMaxSize().padding(5.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(5.dp),
         contentAlignment = Alignment.Center
-    ){
+    ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(text = "Tus pasos de hoy", style = MaterialTheme.typography.bodyMedium)
-            Text(text = "${steps ?: "cargando…"}", style = MaterialTheme.typography.bodyLarge, color = Color(0xFFFFA500))
+            Text(
+                text = "${steps ?: "cargando…"}",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color(0xFFFFA500)
+            )
         }
     }
 }
+
 
 @Composable
 fun DisplayTotalSteps(steps: Long?){
@@ -623,7 +644,6 @@ fun AddFriendDialog(
         }
     }
 }
-
 
 
 

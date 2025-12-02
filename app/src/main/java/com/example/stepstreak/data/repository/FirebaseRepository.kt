@@ -21,35 +21,112 @@ fun searchUser(username: String, onResult: (String?) -> Unit) {
         }
 }
 
-fun sendFriendRequest(username: String) {
-    val currentUser = FirebaseAuth.getInstance().currentUser ?: return
+fun sendFriendRequest(
+    username: String,
+    onResult: (Boolean, String) -> Unit // success, message
+) {
+    val currentUser = FirebaseAuth.getInstance().currentUser ?: return onResult(false, "No autenticado")
     val db = Firebase.database
 
-    // Buscar usuario por username
-    val usersRef = db.getReference("usernames").child(username)
+    val usernamesRef = db.getReference("usernames").child(username)
 
-    usersRef.get().addOnSuccessListener { snapshot ->
+    usernamesRef.get().addOnSuccessListener { snapshot ->
         if (!snapshot.exists()) {
-            Log.d("Friends", "Usuario no encontrado")
+            onResult(false, "Usuario no encontrado")
             return@addOnSuccessListener
         }
 
         val friendUid = snapshot.value.toString()
+        val currentUid = currentUser.uid
+        val friendshipId = listOf(currentUid, friendUid).sorted().joinToString("_")
+        val friendshipRef = db.getReference("friendships").child(friendshipId)
 
-        val friendRequestRef = db.getReference("friend_requests")
-            .child(friendUid)
-            .child(currentUser.uid)
+        friendshipRef.get().addOnSuccessListener { friendshipSnap ->
+            if (friendshipSnap.exists()) {
+                onResult(false, "Ya existe una solicitud o amistad")
+                return@addOnSuccessListener
+            }
 
-        friendRequestRef.setValue(true)
+            val friendship = Friendship(
+                sender = currentUid,
+                receiver = friendUid,
+                status = "pending"
+            )
+
+            friendshipRef.setValue(friendship)
+                .addOnSuccessListener { onResult(true, "Solicitud enviada") }
+                .addOnFailureListener { onResult(false, "Error al enviar solicitud") }
+        }
+    }
+}
+
+
+
+fun rejectFriendRequest(friendUid: String) {
+    val currentUser = FirebaseAuth.getInstance().currentUser ?: return
+    val db = Firebase.database
+
+    val ref1 = db.getReference("friendships")
+        .child(currentUser.uid)
+        .child(friendUid)
+
+    val ref2 = db.getReference("friendships")
+        .child(friendUid)
+        .child(currentUser.uid)
+
+    // Primero verificamos que la solicitud existe
+    ref1.get().addOnSuccessListener { snapshot ->
+        if (!snapshot.exists()) {
+            Log.d("Friends", "No existe solicitud para rechazar")
+            return@addOnSuccessListener
+        }
+
+        // Borrar ambos lados
+        ref1.removeValue()
+        ref2.removeValue()
             .addOnSuccessListener {
-                Log.d("Friends", "Solicitud enviada")
+                Log.d("Friends", "Solicitud rechazada")
             }
             .addOnFailureListener {
-                Log.d("Friends", "Error al enviar solicitud")
+                Log.d("Friends", "Error al rechazar solicitud")
             }
     }
 }
 
+
+fun acceptFriendRequest(friendUid: String) {
+    val currentUser = FirebaseAuth.getInstance().currentUser ?: return
+    val db = Firebase.database
+
+    val friendshipId = listOf(currentUser.uid, friendUid).sorted().joinToString("_")
+    val friendshipRef = db.getReference("friendships").child(friendshipId)
+
+    friendshipRef.child("status").setValue("accepted")
+        .addOnSuccessListener {
+            Log.d("Friends", "Solicitud aceptada")
+        }
+        .addOnFailureListener {
+            Log.d("Friends", "Error al aceptar la solicitud")
+        }
+}
+
+
+
+fun loadReceivedRequests() {
+    val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+    val db = Firebase.database
+
+    db.getReference("friendships").get().addOnSuccessListener { snapshot ->
+        val requests = snapshot.children.mapNotNull { snap ->
+            val friendship = snap.getValue(Friendship::class.java)
+            if (friendship != null && friendship.receiver == uid && friendship.status == "pending") {
+                friendship
+            } else null
+        }
+
+        Log.d("Friends", "Solicitudes recibidas: $requests")
+    }
+}
 
 
 fun addFriend(currentUid: String, targetUid: String) {
