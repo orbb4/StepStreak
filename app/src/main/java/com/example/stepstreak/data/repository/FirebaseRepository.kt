@@ -9,6 +9,9 @@ import com.google.firebase.auth.FirebaseAuth
 
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.database
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import kotlin.math.max
 
 
 val usernamesRef = Firebase.database.getReference("usernames")
@@ -20,6 +23,10 @@ fun searchUser(username: String, onResult: (String?) -> Unit) {
             onResult(uidEncontrado)   // puede ser null
         }
 }
+
+
+
+
 
 fun sendFriendRequest(
     username: String,

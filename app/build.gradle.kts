@@ -85,6 +85,8 @@ dependencies {
     implementation(libs.play.services.location)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.ui)
+    implementation(libs.places)
+    implementation(libs.androidx.core.i18n)
     //implementation(libs.xplatform.com.firebase.bom)
     //implementation(libs.firebase.database)
 

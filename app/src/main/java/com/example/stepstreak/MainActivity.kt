@@ -80,6 +80,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.stepstreak.authentication.LoginActivity
+import com.example.stepstreak.data.db
 import com.example.stepstreak.data.repository.FriendshipDisplay
 import com.example.stepstreak.data.repository.acceptFriendRequest
 import com.example.stepstreak.data.repository.acceptRequest
@@ -105,6 +106,10 @@ import com.example.stepstreak.locationscreen.LocationScreen
 import com.example.stepstreak.roadmap.DisplayRoadmap
 import com.example.stepstreak.roadmap.roadmap1
 import com.example.stepstreak.data.repository.loadFriends
+import com.google.android.libraries.places.api.model.LocalDate
+import com.google.firebase.database.FirebaseDatabase
+import java.time.format.DateTimeFormatter
+import kotlin.math.max
 
 enum class RoadmapScreen(){
     Roadmap,
@@ -307,12 +312,14 @@ class MainActivity : ComponentActivity() {
                     }
                     // pantalla pasos
                     composable(route= RoadmapScreen.YourSteps.name){
+
                         var showAddFriendDialog by remember { mutableStateOf(false) }
                         var friendUsernameInput by remember { mutableStateOf("") }
                         StepStreakTheme {
 
                             LaunchedEffect(Unit) {
                                 checkPermissionsAndRun(healthRepository)
+
                                 var stepsToday: Long
 
                                 do {
@@ -340,10 +347,25 @@ class MainActivity : ComponentActivity() {
                                             modifier = Modifier.padding(16.dp)
                                         )
                                     }
-
-                                    // display de pasos
+                                    val uid = FirebaseAuth.getInstance().currentUser?.uid
+                                    var dailySteps by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
+                                    LaunchedEffect(uid) {
+                                        val db = FirebaseDatabase.getInstance().reference
+                                        if (uid != null) {
+                                            db.child("userDailySteps").child(uid)
+                                                .get()
+                                                .addOnSuccessListener { snapshot ->
+                                                    val map = snapshot.children.associate {
+                                                        it.key!! to (it.getValue(Long::class.java) ?: 0L)
+                                                    }
+                                                    dailySteps = map
+                                                }
+                                        }
+                                    }
                                     DisplaySteps(steps)
-
+                                    Spacer(modifier = Modifier.height(20.dp))
+                                    StepsScreen(dailySteps, 5000L)
+                                    Spacer(modifier = Modifier.height(20.dp))
                                     Spacer(modifier = Modifier.height(20.dp))
                                     // "tus amigos" texto
                                     Text(
@@ -475,18 +497,28 @@ class MainActivity : ComponentActivity() {
 
                     }
                     composable(route=RoadmapScreen.Dog.name){
-                        Box(
-                            modifier = Modifier.fillMaxHeight().fillMaxWidth(),
-                            contentAlignment = Alignment.Center
-                        ){
-                            Image(
-                                painter = painterResource(id = R.drawable.dog),
-                                contentDescription = "Dog",
-                                colorFilter = ColorFilter.tint(Color.Red.copy(alpha = 0.7f)),
-                                modifier = Modifier.size(200.dp)
-                            )
-                        }
+                            val uid = FirebaseAuth.getInstance().currentUser?.uid
+                            var dailySteps by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
 
+                            LaunchedEffect(uid) {
+                                if (uid != null) {
+                                    FirebaseDatabase.getInstance().reference
+                                        .child("userDailySteps")
+                                        .child(uid)
+                                        .get()
+                                        .addOnSuccessListener { snapshot ->
+                                            val map = snapshot.children.associate {
+                                                it.key!! to (it.getValue(Long::class.java) ?: 0L)
+                                            }
+                                            dailySteps = map
+                                        }
+                                }
+                            }
+
+                            StatsScreen(
+                                dailySteps = dailySteps,
+                                stepGoal = 5000L
+                            )
                     }
 
                 }
@@ -599,6 +631,84 @@ fun DisplaySteps(steps: Long?) {
         }
     }
 }
+
+
+@Composable
+fun WeeklyBarChart(stepsPerDay: Map<String, Long>) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(150.dp),
+        horizontalArrangement = Arrangement.SpaceAround,
+        verticalAlignment = Alignment.Bottom
+    ) {
+        stepsPerDay.forEach { (day, steps) ->
+            val heightFactor = (steps / 10000f).coerceIn(0f, 1f)
+
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .width(20.dp)
+                        .fillMaxHeight(heightFactor)
+                        .background(Color(0xFF4CAF50), shape = RoundedCornerShape(4.dp))
+                )
+                Text(text = day.takeLast(2)) // muestra solo el día, ej "24"
+            }
+        }
+    }
+}
+
+@Composable
+fun StatsScreen(
+    dailySteps: Map<String, Long>,
+    stepGoal: Long
+) {
+    var currentStreak by remember { mutableStateOf(0) }
+    var bestStreak by remember { mutableStateOf(0) }
+
+    LaunchedEffect(dailySteps) {
+        if (dailySteps.isNotEmpty()) {
+            val (current, best) = calculateStreak(dailySteps, stepGoal)
+            currentStreak = current
+            bestStreak = best
+        }
+    }
+
+    Column(modifier = Modifier.padding(16.dp)) {
+
+        Text("Estadísticas", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(16.dp))
+
+        // rachas
+        Text("Racha actual: $currentStreak días", fontSize = 18.sp)
+        Text("Mejor racha: $bestStreak días", fontSize = 18.sp)
+
+        Spacer(Modifier.height(24.dp))
+
+        // últimos 7 días
+        Text("Últimos 7 días", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+
+        val last7 = dailySteps
+            .toSortedMap()
+            .entries
+            .reversed()
+            .take(7)
+            .associate { it.key to it.value }
+            .toSortedMap()
+
+        WeeklyBarChart(last7)
+
+        Spacer(Modifier.height(24.dp))
+
+        val avg = if (last7.isNotEmpty()) last7.values.average().toInt() else 0
+        val total = last7.values.sum()
+
+        Text("Promedio diario: $avg pasos", fontSize = 16.sp)
+        Text("Total semanal: $total pasos", fontSize = 16.sp)
+    }
+}
+
+
 
 
 @Composable
@@ -763,6 +873,66 @@ fun PendingRequestItem(request: FriendshipDisplay) {
             }
         }
     }
+}
+@Composable
+fun StepsScreen(
+    dailySteps: Map<String, Long>,
+    stepGoal: Long
+) {
+    var currentStreak by remember { mutableStateOf(0) }
+    var bestStreak by remember { mutableStateOf(0) }
+
+    LaunchedEffect(dailySteps) {
+        if (dailySteps.isNotEmpty()) {
+            val (current, best) = calculateStreak(dailySteps, stepGoal)
+            currentStreak = current
+            bestStreak = best
+        }
+    }
+
+    Column {
+        Text("Racha actual: $currentStreak días")
+        Text("Mejor racha: $bestStreak días")
+    }
+}
+
+
+fun calculateStreak(dailySteps: Map<String, Long>, goal: Long): Pair<Int, Int> {
+    if (dailySteps.isEmpty()) return 0 to 0
+
+    val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+
+    // Convertir a lista ordenada por fecha
+    val days = dailySteps.entries
+        .map { java.time.LocalDate.parse(it.key, formatter) to it.value }
+        .sortedBy { it.first }
+
+    var currentStreak = 0
+    var bestStreak = 0
+
+    var previousDay: java.time.LocalDate? = null
+
+    for ((date, steps) in days) {
+        val metGoal = steps >= goal
+
+        if (previousDay == null) {
+            // primer día
+            currentStreak = if (metGoal) 1 else 0
+        } else {
+            // revisar si es consecutivo
+            if (date == previousDay!!.plusDays(1)) {
+                if (metGoal) currentStreak++ else currentStreak = 0
+            } else {
+                // se rompió la continuidad de días
+                currentStreak = if (metGoal) 1 else 0
+            }
+        }
+
+        bestStreak = max(bestStreak, currentStreak)
+        previousDay = date
+    }
+
+    return currentStreak to bestStreak
 }
 
 
