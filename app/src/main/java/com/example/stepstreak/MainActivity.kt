@@ -106,8 +106,10 @@ import com.example.stepstreak.locationscreen.LocationScreen
 import com.example.stepstreak.roadmap.DisplayRoadmap
 import com.example.stepstreak.roadmap.roadmap1
 import com.example.stepstreak.data.repository.loadFriends
+import com.example.stepstreak.routes.RouteCreatorScreen
 import com.google.android.libraries.places.api.model.LocalDate
 import com.google.firebase.database.FirebaseDatabase
+import org.osmdroid.config.Configuration
 import java.time.format.DateTimeFormatter
 import kotlin.math.max
 
@@ -116,7 +118,8 @@ enum class RoadmapScreen(){
     YourSteps,
     Shop,
     Dog,
-    Location
+    Location,
+    RouteCreator
 
 }
 
@@ -139,6 +142,8 @@ class MainActivity : ComponentActivity() {
         val status = HealthConnectClient.getSdkStatus(this)
         Log.d("HealthConnectTest", "SDK status: $status")
         super.onCreate(savedInstanceState)
+
+        Configuration.getInstance().userAgentValue = packageName
 
 
         setContent {
@@ -256,6 +261,16 @@ class MainActivity : ComponentActivity() {
                                         contentDescription = "Location"
                                     )
                                 }
+
+                                IconButton(
+                                    onClick = { navController.navigate("RouteCreator") },
+                                    modifier = Modifier.weight(1f)
+                                ){
+                                    Icon(
+                                        Icons.Filled.LocationOn,
+                                        contentDescription = "Location"
+                                    )
+                                }
                                 IconButton(
                                     onClick = { navController.navigate("Dog") },
                                     modifier = Modifier.weight(1f)
@@ -282,12 +297,18 @@ class MainActivity : ComponentActivity() {
                     composable(route = RoadmapScreen.Roadmap.name){
                         val scrollState = rememberScrollState()
                         var totalSteps by remember { mutableStateOf<Long?>(null) }
-                        LaunchedEffect(Unit) {
+                        if (permissions_granted) {
+                            LaunchedEffect(Unit) {
+                                scrollState.scrollTo(0)
+                                totalSteps = healthRepository.readTotalSteps(
+                                    Instant.now().minus(7, ChronoUnit.DAYS)
+                                )
+                            }
+                        } else {
 
-                            scrollState.scrollTo(0)
-
-                            totalSteps = healthRepository.readTotalSteps(Instant.now().minus(7, ChronoUnit.DAYS))
+                            Text("Activa permisos para ver tu progreso")
                         }
+
                         Box(){
 
                             Column(){
@@ -455,6 +476,9 @@ class MainActivity : ComponentActivity() {
                     }
                     composable(route=RoadmapScreen.Location.name){
                         LocationScreen()
+                    }
+                    composable(route=RoadmapScreen.RouteCreator.name){
+                        RouteCreatorScreen()
                     }
                     composable(route= RoadmapScreen.Shop.name){
                         Box(

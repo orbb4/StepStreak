@@ -21,6 +21,7 @@ import kotlin.math.max
 
 class HealthRepository(private val healthConnectClient: HealthConnectClient) {
     suspend fun readTodaySteps(): Long {
+        if (!hasPermissions()) return 0L
         val records = healthConnectClient.readRecords(
             ReadRecordsRequest(
                 StepsRecord::class,

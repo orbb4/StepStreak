@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
+
     <uses-permission android:name="android.permission.health.READ_STEPS" tools:node="replace"
         tools:ignore="HealthConnectPolicy" />
     <uses-permission android:name="android.permission.health.WRITE_STEPS" tools:node="replace"
@@ -12,6 +13,9 @@
         <package android:name="com.google.android.apps.healthdata" />
 
     </queries>
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -55,6 +59,7 @@
             android:name=".authentication.LoginActivity"
             android:theme="@style/Theme.StepStreak">
         </activity>
+
 
     </application>
 
