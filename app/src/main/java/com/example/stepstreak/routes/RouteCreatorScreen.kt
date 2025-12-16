@@ -10,6 +10,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -21,8 +23,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.stepstreak.data.auth
 import com.example.stepstreak.locationscreen.guardarLugarEnFirebase
 import com.example.stepstreak.locationscreen.obtenerPOI
@@ -37,8 +41,14 @@ import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Overlay
 
 
+
+
 @Composable
-fun RouteCreatorScreen() {
+fun RouteCreatorScreen(
+    routeName: String,
+    routeViewModel: RouteViewModel = viewModel(),
+    onSaveRoute: (String, List<GeoPoint>) -> Unit = { _, _ -> } // callback to parent
+) {
     val context = LocalContext.current
     var userLocation by remember { mutableStateOf<GeoPoint?>(null) }
     var mapLoading by remember { mutableStateOf(true) }
@@ -51,28 +61,43 @@ fun RouteCreatorScreen() {
                 userLocation = GeoPoint(lat, lon)
             }
         } else {
-            // si no hay permiso, mapa se centra en Santiago
-            userLocation = GeoPoint(-33.45, -70.66)
+            userLocation = GeoPoint(-33.45, -70.66) // fallback
         }
     }
 
     LaunchedEffect(Unit) {
+        routeViewModel.startRoute(routeName)
         permissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
     }
 
-    MapScreen(
-        center = userLocation,
-        mapLoading = mapLoading,
-        onMapLoaded = { mapLoading = false }
-    )
+    Box(modifier = Modifier.fillMaxSize()) {
+        MapScreen(
+            center = userLocation,
+            mapLoading = mapLoading,
+            onMapLoaded = { mapLoading = false },
+            onPointSelected = { geoPoint ->
+                routeViewModel.addMarker(geoPoint)
+            }
+        )
+
+        Button(
+            onClick = {
+                onSaveRoute(routeViewModel.currentRouteName, routeViewModel.markers)
+            },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(16.dp)
+        ) {
+            Text("Guardar ruta")
+        }
+    }
 }
-
-
 @Composable
 fun MapScreen(
     center: GeoPoint?,
     mapLoading: Boolean,
-    onMapLoaded: () -> Unit
+    onMapLoaded: () -> Unit,
+    onPointSelected: (GeoPoint) -> Unit
 ) {
     val context = LocalContext.current
 
@@ -94,11 +119,12 @@ fun MapScreen(
 
                     mapView.overlays.add(marker)
                     mapView.invalidate()
+                    onPointSelected(geoPoint)
+
                     return true
                 }
             })
 
-            // Detect first draw
             overlays.add(object : Overlay() {
                 var firstDraw = true
                 override fun draw(canvas: Canvas, mapView: MapView?, shadow: Boolean) {
@@ -112,11 +138,8 @@ fun MapScreen(
         }
     }
 
-    // Update center when location arrives
     LaunchedEffect(center) {
-        center?.let {
-            mapView.controller.setCenter(it)
-        }
+        center?.let { mapView.controller.setCenter(it) }
     }
 
     DisposableEffect(Unit) {
@@ -131,10 +154,7 @@ fun MapScreen(
         )
 
         if (mapLoading) {
-            Text(
-                "Cargando mapa…",
-                modifier = Modifier.align(Alignment.Center)
-            )
+            Text("Cargando mapa…", modifier = Modifier.align(Alignment.Center))
         }
     }
 }

@@ -76,9 +76,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.stepstreak.authentication.LoginActivity
 import com.example.stepstreak.data.db
 import com.example.stepstreak.data.repository.FriendshipDisplay
@@ -106,7 +109,9 @@ import com.example.stepstreak.locationscreen.LocationScreen
 import com.example.stepstreak.roadmap.DisplayRoadmap
 import com.example.stepstreak.roadmap.roadmap1
 import com.example.stepstreak.data.repository.loadFriends
+import com.example.stepstreak.routes.CreateRouteScreen
 import com.example.stepstreak.routes.RouteCreatorScreen
+import com.example.stepstreak.routes.RouteViewModel
 import com.google.android.libraries.places.api.model.LocalDate
 import com.google.firebase.database.FirebaseDatabase
 import org.osmdroid.config.Configuration
@@ -119,7 +124,8 @@ enum class RoadmapScreen(){
     Shop,
     Dog,
     Location,
-    RouteCreator
+    RouteCreator,
+    CreateRoute
 
 }
 
@@ -252,18 +258,9 @@ class MainActivity : ComponentActivity() {
                                         contentDescription = "Shop"
                                     )
                                 }
-                                IconButton(
-                                    onClick = { navController.navigate("Location") },
-                                    modifier = Modifier.weight(1f)
-                                ){
-                                    Icon(
-                                        Icons.Filled.LocationOn,
-                                        contentDescription = "Location"
-                                    )
-                                }
 
                                 IconButton(
-                                    onClick = { navController.navigate("RouteCreator") },
+                                    onClick = { navController.navigate("CreateRoute") },
                                     modifier = Modifier.weight(1f)
                                 ){
                                     Icon(
@@ -474,12 +471,48 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                    composable(route=RoadmapScreen.Location.name){
-                        LocationScreen()
+
+
+                    //CREATE ROUTE SCREEN
+                    composable("createRoute") {
+                        val routeViewModel: RouteViewModel = viewModel(navController.getBackStackEntry("createRoute"))
+                        CreateRouteScreen { routeName ->
+                            navController.navigate("routeCreator/$routeName")
+                        }
                     }
-                    composable(route=RoadmapScreen.RouteCreator.name){
-                        RouteCreatorScreen()
+
+                    //MAP SCREEN
+                    composable(
+                        route = "routeCreator/{routeName}",
+                        arguments = listOf(navArgument("routeName") { type = NavType.StringType })
+                    ) { backStackEntry ->
+                        val routeName = backStackEntry.arguments?.getString("routeName") ?: ""
+                        val routeViewModel: RouteViewModel = viewModel(backStackEntry)
+
+                        RouteCreatorScreen(
+                            routeName = routeName,
+                            routeViewModel = routeViewModel,
+                            onSaveRoute = { name, markers ->
+                                // Example: navigate back and store route
+                                navController.popBackStack()
+                                // You could also persist to Room, or update another ViewModel
+                                println("Saved route: $name with ${markers.size} points")
+                            }
+                        )
                     }
+
+
+                    /*
+                    composable(
+                        route = "${RoadmapScreen.RouteCreator.name}/{routeName}",
+                        arguments = listOf(
+                            navArgument("routeName") { type = NavType.StringType }
+                        )
+                    ) { backStackEntry ->
+                        val routeName = backStackEntry.arguments?.getString("routeName") ?: ""
+
+                        RouteCreatorScreen(routeName = routeName)
+                    }*/
                     composable(route= RoadmapScreen.Shop.name){
                         Box(
                             contentAlignment = Alignment.Center,
