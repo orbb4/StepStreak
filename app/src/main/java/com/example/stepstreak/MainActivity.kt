@@ -45,6 +45,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddLocationAlt
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -116,6 +117,7 @@ import com.example.stepstreak.routes.Route
 import com.example.stepstreak.routes.RouteCreatorScreen
 import com.example.stepstreak.routes.RouteViewModel
 import com.example.stepstreak.routes.enrichRouteWithPOIs
+import com.example.stepstreak.suggestedpois.SuggestedPOIsTaskScreen
 import com.google.android.libraries.places.api.model.LocalDate
 import com.google.firebase.database.FirebaseDatabase
 import org.osmdroid.config.Configuration
@@ -129,7 +131,8 @@ enum class RoadmapScreen(){
     Dog,
     Location,
     RouteCreator,
-    CreateRoute
+    CreateRoute,
+    POIsuggestions
 
 }
 
@@ -280,6 +283,15 @@ class MainActivity : ComponentActivity() {
                                         painter = painterResource(id = R.drawable.dog),
                                         contentDescription = "Dog",
                                         modifier = Modifier.size(28.dp)
+                                    )
+                                }
+                                IconButton(
+                                    onClick = { navController.navigate("POIsuggestions") },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(
+                                        Icons.Filled.AddLocationAlt,
+                                        contentDescription = "Location"
                                     )
                                 }
                             }
@@ -476,13 +488,16 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-
                     //CREATE ROUTE SCREEN
                     composable("createRoute") {
                         val routeViewModel: RouteViewModel = viewModel(navController.getBackStackEntry("createRoute"))
                         CreateRouteScreen { routeName ->
                             navController.navigate("routeCreator/$routeName")
                         }
+                    }
+                    // POI suggestions
+                    composable(route= RoadmapScreen.POIsuggestions.name){
+                        SuggestedPOIsTaskScreen()
                     }
 
                     //MAP SCREEN

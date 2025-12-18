@@ -88,6 +88,8 @@ dependencies {
     implementation(libs.androidx.ui)
     implementation(libs.places)
     implementation(libs.androidx.core.i18n)
+    implementation(libs.androidx.compose.runtime)
+    implementation(libs.androidx.compose.foundation.layout)
     //implementation(libs.xplatform.com.firebase.bom)
     //implementation(libs.firebase.database)
 

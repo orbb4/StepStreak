@@ -109,25 +109,28 @@ fun obtenerPOI(lat: Double, lon: Double, onResult: (String) -> Unit) {
 fun obtenerPOIsEnUnRadio(
     lat: Double,
     lon: Double,
-    radius: Int = 100,
-    limit: Int = 10,
+    radius: Int = 1000,
     onResult: (List<String>) -> Unit
 ) {
-    val url = "https://nominatim.openstreetmap.org/search?" +
-            "format=json&lat=$lat&lon=$lon&addressdetails=1&extratags=1&limit=$limit&radius=$radius"
+    val url = "https://overpass-api.de/api/interpreter" +
+            "?data=[out:json];(node(around:$radius,$lat,$lon)[\"amenity\"];);out;"
 
     Thread {
         try {
             val connection = URL(url).openConnection()
             connection.setRequestProperty("User-Agent", "StepStreakApp/1.0")
-
             val data = connection.getInputStream().bufferedReader().use { it.readText() }
-            val jsonArray = JSONArray(data)
+            val json = JSONObject(data)
+            val elements = json.getJSONArray("elements")
 
             val names = mutableListOf<String>()
-            for (i in 0 until jsonArray.length()) {
-                val obj = jsonArray.getJSONObject(i)
-                names.add(obj.optString("display_name", "Sin información"))
+            for (i in 0 until elements.length()) {
+                val obj = elements.getJSONObject(i)
+                val tags = obj.optJSONObject("tags")
+                val name = tags?.optString("name")
+                if (!name.isNullOrBlank()) {
+                    names.add(name)
+                }
             }
 
             onResult(names)

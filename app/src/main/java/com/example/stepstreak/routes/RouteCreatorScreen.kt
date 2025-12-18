@@ -28,9 +28,13 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.stepstreak.data.auth
+import com.example.stepstreak.data.repository.DailyTask
 import com.example.stepstreak.locationscreen.guardarLugarEnFirebase
 import com.example.stepstreak.locationscreen.obtenerPOI
 import com.example.stepstreak.locationscreen.obtenerUbicacion
+import com.google.firebase.Firebase
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.database
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
@@ -39,8 +43,7 @@ import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Overlay
-
-
+import java.time.LocalDate
 
 
 @Composable
@@ -82,7 +85,34 @@ fun RouteCreatorScreen(
 
         Button(
             onClick = {
+                val currentUser = FirebaseAuth.getInstance().currentUser
+                val today = LocalDate.now().toString()
+                val db = Firebase.database
+                val tasksRef = db.getReference("dailyTasks/${currentUser?.uid}/$today")
+
+                // Guardar la ruta
                 onSaveRoute(routeViewModel.currentRouteName, routeViewModel.markers)
+
+                // Enriquecer la ruta con POIs
+                enrichRouteWithPOIs(routeViewModel.currentRouteName, routeViewModel.markers) { placeCounts ->
+                    tasksRef.get().addOnSuccessListener { snapshot ->
+                        if (snapshot.exists()) {
+                            val tasks = snapshot.children.mapIndexed { index, child ->
+                                val task = child.getValue(DailyTask::class.java)
+                                index to task
+                            }
+
+                            // Comparar nombres de POIs de la ruta con las tareas
+                            placeCounts.values.forEach { placeSummary ->
+                                tasks.forEach { (index, task) ->
+                                    if (task != null && !task.completed && task.poiName == placeSummary.name) {
+                                        tasksRef.child(index.toString()).child("completed").setValue(true)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             },
             modifier = Modifier
                 .align(Alignment.BottomCenter)

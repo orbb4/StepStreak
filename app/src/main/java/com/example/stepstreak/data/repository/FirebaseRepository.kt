@@ -399,3 +399,40 @@ fun addVisitedCell(sessionId: String, lat: Int, lon: Int) {
 }
 
 
+fun generateDailyTasks(
+    uid: String,
+    pois: List<String>,
+    onResult: (List<DailyTask>) -> Unit
+) {
+    val db = Firebase.database
+    val today = LocalDate.now().toString() // "2025-12-18"
+    val tasksRef = db.getReference("dailyTasks").child(uid).child(today)
+
+    tasksRef.get().addOnSuccessListener { snapshot ->
+        if (snapshot.exists()) {
+            // Ya hay tareas guardadas
+            val tasks = snapshot.children.mapNotNull { it.getValue(DailyTask::class.java) }
+            onResult(tasks)
+        } else {
+            // Generar nuevas
+            val newTasks = pois.shuffled().take(5).map { poi ->
+                DailyTask(poiName = poi, completed = false)
+            }
+            tasksRef.setValue(newTasks)
+                .addOnSuccessListener { onResult(newTasks) }
+                .addOnFailureListener { onResult(emptyList()) }
+        }
+    }
+}
+
+data class DailyTask(
+    val poiName: String = "",
+    val completed: Boolean = false
+)
+
+
+fun completeTask(uid: String, date: String, index: Int) {
+    val db = Firebase.database
+    val taskRef = db.getReference("dailyTasks").child(uid).child(date).child(index.toString())
+    taskRef.child("completed").setValue(true)
+}
