@@ -4,11 +4,15 @@ import android.util.Log
 import com.example.stepstreak.data.model.Friendship
 import com.example.stepstreak.data.model.VisitedCell
 import com.example.stepstreak.data.model.WalkSession
+import com.example.stepstreak.routes.LatLngPoint
+import com.example.stepstreak.routes.PlaceSummary
+import com.example.stepstreak.routes.Route
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.database
+import org.osmdroid.util.GeoPoint
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.math.max
@@ -25,9 +29,80 @@ fun searchUser(username: String, onResult: (String?) -> Unit) {
 }
 
 
+fun loadUserRoutes(onResult: (List<Route>) -> Unit) {
+    val currentUser = FirebaseAuth.getInstance().currentUser ?: return
+    val db = Firebase.database
 
+    val TAG = "LoadUserRoutes"
 
+    db.getReference("routes")
+        .orderByChild("ownerUid")
+        .equalTo(currentUser.uid)
+        .get()
+        .addOnSuccessListener { snapshot ->
+            Log.d(TAG, "Children count: ${snapshot.childrenCount}")
 
+            snapshot.children.forEach { child ->
+                Log.d(TAG, "Raw child key: ${child.key}")
+                Log.d(TAG, "Raw child value: ${child.value}")
+
+                val route = child.getValue(Route::class.java)
+                Log.d(TAG, "Parsed route: $route")
+            }
+
+            val routes = snapshot.children.mapNotNull { it.getValue(Route::class.java) }
+            onResult(routes)
+        }
+        .addOnFailureListener { e ->
+            Log.e(TAG, "Error loading routes", e)
+        }
+}
+fun saveRoute(
+    routeName: String,
+    markers: List<GeoPoint>,
+    onResult: (Boolean, String) -> Unit
+) {
+    val currentUser = FirebaseAuth.getInstance().currentUser
+        ?: return onResult(false, "No autenticado")
+
+    val db = Firebase.database
+    val routesRef = db.getReference("routes")
+
+    // Convert markers to LatLngPoint
+    val points = markers.map { LatLngPoint(it.latitude, it.longitude) }
+
+    val routeId = routesRef.push().key ?: return onResult(false, "Error creando ID")
+
+    val route = Route(
+        ownerUid = currentUser.uid,
+        name = routeName,
+        points = points
+    )
+
+    routesRef.child(routeId).setValue(route)
+        .addOnSuccessListener { onResult(true, "Ruta guardada") }
+        .addOnFailureListener { onResult(false, "Error al guardar ruta") }
+}
+
+// retorna los lugares mas visitados en orden descendiente
+fun aggregatePlaces(routes: List<Route>): List<PlaceSummary> {
+    val totals = mutableMapOf<String, PlaceSummary>()
+
+    for (route in routes) {
+        route.places.forEach { (key, place) ->
+            val current = totals[key]
+            if (current == null) {
+                totals[key] = PlaceSummary(place.name, place.num_of_points)
+            } else {
+                totals[key] = current.copy(
+                    num_of_points = current.num_of_points + place.num_of_points
+                )
+            }
+        }
+    }
+
+    return totals.values.sortedByDescending { it.num_of_points }
+}
 fun sendFriendRequest(
     username: String,
     onResult: (Boolean, String) -> Unit // success, message

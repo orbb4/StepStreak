@@ -109,9 +109,13 @@ import com.example.stepstreak.locationscreen.LocationScreen
 import com.example.stepstreak.roadmap.DisplayRoadmap
 import com.example.stepstreak.roadmap.roadmap1
 import com.example.stepstreak.data.repository.loadFriends
+import com.example.stepstreak.data.repository.saveRoute
 import com.example.stepstreak.routes.CreateRouteScreen
+import com.example.stepstreak.routes.LatLngPoint
+import com.example.stepstreak.routes.Route
 import com.example.stepstreak.routes.RouteCreatorScreen
 import com.example.stepstreak.routes.RouteViewModel
+import com.example.stepstreak.routes.enrichRouteWithPOIs
 import com.google.android.libraries.places.api.model.LocalDate
 import com.google.firebase.database.FirebaseDatabase
 import org.osmdroid.config.Configuration
@@ -286,7 +290,7 @@ class MainActivity : ComponentActivity() {
                 innerPadding ->
                 NavHost(
                     navController = navController,
-                    startDestination = RoadmapScreen.Roadmap.name,
+                    startDestination = RoadmapScreen.YourSteps.name,
                     modifier = Modifier.padding(innerPadding)
                 ) {
                     // pantalla roadmap
@@ -493,14 +497,37 @@ class MainActivity : ComponentActivity() {
                             routeName = routeName,
                             routeViewModel = routeViewModel,
                             onSaveRoute = { name, markers ->
-                                // Example: navigate back and store route
-                                navController.popBackStack()
-                                // You could also persist to Room, or update another ViewModel
-                                println("Saved route: $name with ${markers.size} points")
+                                enrichRouteWithPOIs(name, markers) { places ->
+                                    val currentUser = FirebaseAuth.getInstance().currentUser ?: return@enrichRouteWithPOIs
+                                    val db = Firebase.database
+                                    val routesRef = db.getReference("routes")
+                                    val routeId = routesRef.push().key ?: return@enrichRouteWithPOIs
+
+                                    val points = markers.map {
+                                        LatLngPoint(
+                                            it.latitude,
+                                            it.longitude
+                                        )
+                                    }
+                                    val route = Route(
+                                        ownerUid = currentUser.uid,
+                                        name = name,
+                                        points = points,
+                                        places = places
+                                    )
+
+                                    routesRef.child(routeId).setValue(route)
+                                        .addOnSuccessListener {
+                                            navController.popBackStack()
+                                            println("Ruta guardada con POIs")
+                                        }
+                                        .addOnFailureListener {
+                                            println("Error al guardar ruta: ${it.message}")
+                                        }
+                                }
                             }
                         )
                     }
-
 
                     /*
                     composable(

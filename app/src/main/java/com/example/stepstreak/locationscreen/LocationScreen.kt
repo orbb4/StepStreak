@@ -22,6 +22,7 @@ import com.example.stepstreak.data.auth
 import com.google.android.gms.location.LocationServices
 import com.google.firebase.database.FirebaseDatabase
 import kotlinx.coroutines.tasks.await
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URL
 
@@ -105,7 +106,36 @@ fun obtenerPOI(lat: Double, lon: Double, onResult: (String) -> Unit) {
     }.start()
 }
 
+fun obtenerPOIsEnUnRadio(
+    lat: Double,
+    lon: Double,
+    radius: Int = 100,
+    limit: Int = 10,
+    onResult: (List<String>) -> Unit
+) {
+    val url = "https://nominatim.openstreetmap.org/search?" +
+            "format=json&lat=$lat&lon=$lon&addressdetails=1&extratags=1&limit=$limit&radius=$radius"
 
+    Thread {
+        try {
+            val connection = URL(url).openConnection()
+            connection.setRequestProperty("User-Agent", "StepStreakApp/1.0")
+
+            val data = connection.getInputStream().bufferedReader().use { it.readText() }
+            val jsonArray = JSONArray(data)
+
+            val names = mutableListOf<String>()
+            for (i in 0 until jsonArray.length()) {
+                val obj = jsonArray.getJSONObject(i)
+                names.add(obj.optString("display_name", "Sin información"))
+            }
+
+            onResult(names)
+        } catch (e: Exception) {
+            onResult(listOf("No se pudo obtener POIs"))
+        }
+    }.start()
+}
 fun generarPlaceId(nombre: String): String {
     return nombre.lowercase()
         .replace("[^a-z0-9]".toRegex(), "_")
